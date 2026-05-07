@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Torres TRIVIA</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; min-height: 100vh; padding: 0 0 30px 0; }
+        
+        /* Header Transparente */
+        .logo-header { width: 100%; background: transparent; line-height: 0; margin-bottom: 0; padding: 0; }
+        .logo-header img { width: 100%; height: auto; display: block; max-height: 150px; object-fit: contain; }
+
+        h1 { text-align: center; font-size: 1.8rem; margin: 10px 0 5px 0; }
+        .subtitle { text-align: center; color: #64748b; margin-bottom: 20px; font-size: 0.8rem; }
+        
+        .status-bar { text-align: center; margin-bottom: 20px; }
+        .status-bar span { background: #1e293b; padding: 6px 16px; border-radius: 20px; font-size: 0.75rem; color: #94a3b8; }
+        .status-bar span.ok { color: #10b981; }
+        .status-bar span.err { color: #ef4444; }
+
+        /* Contadores */
+        .counter { display: flex; justify-content: center; gap: 15px; margin-bottom: 25px; flex-wrap: wrap; padding: 0 20px; }
+        .counter-item { text-align: center; background: #1e293b; padding: 10px 20px; border-radius: 12px; min-width: 120px; }
+        .counter-item .num { font-size: 1.8rem; font-weight: bold; }
+        .counter-item .lbl { font-size: 0.65rem; color: #64748b; text-transform: uppercase; }
+        .num.green { color: #10b981; }
+        .num.red { color: #ef4444; }
+        .num.gray { color: #64748b; }
+
+        /* Grid e Cards Compactos (Tamanho similar aos contadores) */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px; max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+        .card { background: #1e293b; border-radius: 12px; padding: 12px 10px; border-left: 4px solid #475569; transition: all 0.4s ease; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 140px; }
+        .card.ok { border-left-color: #10b981; background: linear-gradient(135deg, #1e293b, #0f2a1e); }
+        .card.fail { border-left-color: #ef4444; background: linear-gradient(135deg, #1e293b, #2a0f0f); }
+        .card.offline { border-left-color: #475569; opacity: 0.6; }
+
+        .card-name { font-size: 0.75rem; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%; }
+        
+        .status-circle { width: 55px; height: 55px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; color: #fff; margin-bottom: 10px; line-height: 1; padding: 5px; }
+        
+        .ok .status-circle { background: #10b981; box-shadow: 0 0 12px rgba(16,185,129,0.4); animation: pulse-green 2s infinite; }
+        .fail .status-circle { background: #ef4444; box-shadow: 0 0 12px rgba(239,68,68,0.4); animation: pulse-red 1s infinite; }
+        .offline .status-circle { background: #475569; }
+
+        @keyframes pulse-green { 0%,100%{box-shadow:0 0 12px rgba(16,185,129,0.4)} 50%{box-shadow:0 0 20px rgba(16,185,129,0.7)} }
+        @keyframes pulse-red { 0%,100%{box-shadow:0 0 12px rgba(239,68,68,0.4)} 50%{box-shadow:0 0 20px rgba(239,68,68,0.7)} }
+
+        .card-footer { margin-top: auto; padding-top: 8px; border-top: 1px solid #334155; font-size: 0.6rem; color: #64748b; width: 100%; text-align: center; }
+        
+        .empty { grid-column: 1/-1; text-align: center; padding: 40px; color: #475569; }
+        .loader { display: inline-block; width: 12px; height: 12px; border: 2px solid #334155; border-top-color: #38bdf8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="logo-header">
+    <img src="logo_w-1.png" alt="Logo Trivia">
+</div>
+
+<h1>📡 Monitor de Torres TRIVIA</h1>
+<p class="subtitle">Atualização automática a cada 10 segundos</p>
+
+<div class="status-bar">
+    <span id="conn-status"><span class="loader"></span>Conectando...</span>
+</div>
+
+<div class="counter">
+    <div class="counter-item"><div class="num green" id="cnt-ok">-</div><div class="lbl">Operacionais</div></div>
+    <div class="counter-item"><div class="num red" id="cnt-fail">-</div><div class="lbl">Falhas</div></div>
+    <div class="counter-item"><div class="num gray" id="cnt-off">-</div><div class="lbl">Sem Resposta</div></div>
+</div>
+
+<div id="grid" class="grid">
+    <div class="empty"><span class="loader"></span> Carregando torres...</div>
+</div>
+
+<script>
+    const SB_URL = "https://fkddaibgfclnpjedeisw.supabase.co";
+    const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZGRhaWJnZmNsbnBqZWRlaXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NTA4NTEsImV4cCI6MjA5MzQyNjg1MX0.obf-xuFCd6NTXkMtsXniEt2-RsvKkgIrtkwqo7WJgpw";
+
+    async function fetchData() {
+        try {
+            const res = await fetch(`${SB_URL}/rest/v1/device_status?select=*&order=device_name`, {
+                headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` }
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            renderCards(data);
+            document.getElementById('conn-status').className = 'ok';
+            document.getElementById('conn-status').innerHTML = '🟢 Conectado ao Supabase';
+        } catch (err) {
+            document.getElementById('conn-status').className = 'err';
+            document.getElementById('conn-status').innerHTML = `🔴 Erro: ${err.message}`;
+        }
+    }
+
+    function renderCards(data) {
+        const grid = document.getElementById('grid');
+        let cntOk = 0, cntFail = 0, cntOff = 0;
+        if (!data || data.length === 0) {
+            grid.innerHTML = '<div class="empty">Nenhuma torre encontrada no banco.</div>';
+            return;
+        }
+        grid.innerHTML = '';
+        data.forEach(t => {
+            const now = new Date();
+            const last = new Date(t.last_seen.replace(" ", "T").split("+")[0] + "Z");
+            const dataFormatada = last.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+            const diffMin = isNaN(last) ? 9999 : Math.floor((now - last) / 60000);
+            
+            let cls = 'fail', label = 'FALHA';
+            if (diffMin > 15)  { cls = 'offline'; label = 'OFFLINE'; cntOff++; }
+            else if (t.is_ok)  { cls = 'ok';      label = 'OK';      cntOk++;  }
+            else                {                                      cntFail++; }
+
+            const card = document.createElement('div');
+            card.className = `card ${cls}`;
+            card.innerHTML = `
+                <div class="card-name">${t.device_name}</div>
+                <div class="status-circle">${label}</div>
+                <div class="card-footer">🕐 ${dataFormatada.split(',')[1]}</div>`;
+            grid.appendChild(card);
+        });
+        document.getElementById('cnt-ok').textContent   = cntOk;
+        document.getElementById('cnt-fail').textContent = cntFail;
+        document.getElementById('cnt-off').textContent  = cntOff;
+    }
+
+    fetchData();
+    setInterval(fetchData, 10000);
+</script>
+</body>
+</html>
