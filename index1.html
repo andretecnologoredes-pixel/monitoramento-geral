@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitor de Torres TRIVIA</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f172a;
+    --sidebar: #1e293b;
+    --card: #1e293b;
+    --card2: #263347;
+    --border: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --ok: #10b981;
+    --fail: #ef4444;
+    --off: #64748b;
+    --accent: #38bdf8;
+    --navbar-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); display: flex; height: 100vh; overflow: hidden; }
+
+  /* ── SIDEBAR (desktop) ── */
+  .sidebar {
+    width: 220px; min-width: 220px;
+    background: var(--sidebar);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 0;
+    transition: transform 0.3s;
+    z-index: 200;
+  }
+  .sidebar-logo {
+    padding: 18px 16px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sidebar-logo img { height: 36px; object-fit: contain; }
+  .sidebar-logo span { font-size: 0.85rem; font-weight: 700; color: var(--accent); letter-spacing: 0.5px; }
+  .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px; border-radius: 10px;
+    cursor: pointer; font-size: 0.875rem; font-weight: 500;
+    color: var(--muted); transition: all 0.2s;
+    border: 1px solid transparent;
+  }
+  .nav-item:hover { background: var(--card2); color: var(--text); }
+  .nav-item.active { background: rgba(56,189,248,0.12); color: var(--accent); border-color: rgba(56,189,248,0.25); }
+  .nav-item .icon { font-size: 1.1rem; width: 20px; text-align: center; }
+  .sidebar-footer {
+    padding: 14px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 0.72rem; color: var(--muted);
+  }
+  .conn-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--off); margin-right: 6px; }
+  .conn-dot.ok { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .conn-dot.err { background: var(--fail); }
+
+  /* ── MAIN ── */
+  .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+  .topbar {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--sidebar);
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar h1 { font-size: 1.1rem; font-weight: 700; }
+  .topbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .badge {
+    padding: 4px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 600;
+    background: var(--card2); border: 1px solid var(--border);
+  }
+  .badge.ok { color: var(--ok); border-color: rgba(16,185,129,0.3); }
+  .badge.fail { color: var(--fail); border-color: rgba(239,68,68,0.3); }
+  .badge.off { color: var(--muted); }
+  .btn-refresh {
+    background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
+    color: var(--accent); padding: 6px 14px; border-radius: 8px;
+    font-size: 0.8rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .btn-refresh:hover { background: rgba(56,189,248,0.2); }
+
+  /* Hamburger */
+  .btn-menu {
+    display: none;
+    background: none; border: none; color: var(--text);
+    font-size: 1.4rem; cursor: pointer; padding: 4px 6px;
+    line-height: 1;
+  }
+
+  .content { flex: 1; overflow-y: auto; padding: 20px; }
+
+  /* ── PAGE: MONITORAMENTO ── */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 18px; min-width: 110px; flex: 1;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .stat-num { font-size: 1.8rem; font-weight: 700; line-height: 1; }
+  .stat-lbl { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; font-weight: 600; }
+  .stat-num.green { color: var(--ok); }
+  .stat-num.red { color: var(--fail); }
+  .stat-num.gray { color: var(--off); }
+  .stat-num.blue { color: var(--accent); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-top: 3px solid var(--border);
+    border-radius: 12px; padding: 13px 10px;
+    display: flex; flex-direction: column; align-items: center;
+    text-align: center; cursor: pointer;
+    transition: all 0.25s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+  .card.ok { border-top-color: var(--ok); background: linear-gradient(160deg, rgba(16,185,129,0.07) 0%, var(--card) 50%); }
+  .card.fail { border-top-color: var(--fail); background: linear-gradient(160deg, rgba(239,68,68,0.07) 0%, var(--card) 50%); }
+  .card.offline { border-top-color: var(--off); opacity: 0.75; }
+  .card-name { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 10px; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status-circle {
+    width: 50px; height: 50px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.58rem; font-weight: 700; color: #fff;
+    margin-bottom: 10px; letter-spacing: 0.4px;
+  }
+  .ok .status-circle { background: var(--ok); animation: pg 2s infinite; }
+  .fail .status-circle { background: var(--fail); animation: pr 1s infinite; }
+  .offline .status-circle { background: var(--off); }
+  @keyframes pg { 0%,100%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)} 70%{box-shadow:0 0 0 10px rgba(16,185,129,0)} }
+  @keyframes pr { 0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)} 70%{box-shadow:0 0 0 12px rgba(239,68,68,0)} }
+  .card-footer { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.62rem; color: var(--muted); width: 100%; font-weight: 600; }
+
+  /* ── CARD DUPLO ── */
+  .dual-circles { display: flex; gap: 8px; align-items: center; justify-content: center; margin-bottom: 10px; }
+  .dual-circle {
+    width: 40px; height: 40px; border-radius: 50%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 0.48rem; font-weight: 700; color: #fff; letter-spacing: 0.3px; gap: 1px;
+  }
+  .dual-circle .dc-num { font-size: 0.58rem; font-weight: 800; line-height: 1; }
+  .dual-circle.ok  { background: var(--ok);  animation: pg 2s infinite; }
+  .dual-circle.fail{ background: var(--fail); animation: pr 1s infinite; }
+  .dual-circle.offline { background: var(--off); }
+  .dual-footer { margin-top: auto; padding-top: 8px; border-top: 1px solid var(--border); font-size: 0.56rem; color: var(--muted); width: 100%; display: flex; justify-content: space-around; font-weight: 600; }
+
+  /* ── PAGE: HISTÓRICO ── */
+  .hist-filters { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+  .hist-filters select, .hist-filters input {
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text); padding: 8px 10px; border-radius: 8px;
+    font-size: 0.82rem; font-family: inherit; outline: none;
+    min-width: 0; flex: 1 1 140px;
+  }
+  .hist-filters select:focus, .hist-filters input:focus { border-color: var(--accent); }
+  .btn-filter {
+    background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3);
+    color: var(--accent); padding: 8px 14px; border-radius: 8px;
+    font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap;
+  }
+  .btn-filter:hover { background: rgba(56,189,248,0.2); }
+
+  /* Tabela responsiva com scroll horizontal */
+  .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .hist-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; min-width: 420px; }
+  .hist-table th { text-align: left; padding: 10px 14px; color: var(--muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .hist-table td { padding: 10px 14px; border-bottom: 1px solid rgba(51,65,85,0.5); }
+  .hist-table tr:hover td { background: rgba(255,255,255,0.03); }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.72rem; font-weight: 700; }
+  .pill.ok { background: rgba(16,185,129,0.15); color: var(--ok); }
+  .pill.fail { background: rgba(239,68,68,0.15); color: var(--fail); }
+  .hist-empty { text-align: center; padding: 40px; color: var(--muted); }
+
+  /* ── PAGE: OTA ── */
+  .ota-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .ota-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 20px; }
+  .ota-card h3 { font-size: 0.9rem; font-weight: 700; margin-bottom: 16px; color: var(--accent); }
+  .device-list { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+  .device-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 12px; background: var(--card2); border-radius: 10px;
+    border: 1px solid var(--border); cursor: pointer; transition: all 0.2s;
+  }
+  .device-row:hover { border-color: var(--accent); }
+  .device-row.selected { border-color: var(--accent); background: rgba(56,189,248,0.08); }
+  .device-row .dname { font-size: 0.82rem; font-weight: 600; }
+  .device-row .dstatus { font-size: 0.7rem; }
+  .device-row .dstatus.online { color: var(--ok); }
+  .device-row .dstatus.offline { color: var(--off); }
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: 12px;
+    padding: 24px; text-align: center; cursor: pointer;
+    transition: all 0.2s; margin-bottom: 14px;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(56,189,248,0.05); }
+  .upload-zone .uz-icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-zone .uz-text { font-size: 0.82rem; color: var(--muted); }
+  .upload-zone .uz-file { font-size: 0.82rem; color: var(--accent); font-weight: 600; margin-top: 6px; }
+  #ota-file-input { display: none; }
+  .btn-ota {
+    width: 100%; padding: 11px; border-radius: 10px;
+    background: rgba(56,189,248,0.15); border: 1px solid rgba(56,189,248,0.4);
+    color: var(--accent); font-size: 0.85rem; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-ota:hover:not(:disabled) { background: rgba(56,189,248,0.25); }
+  .btn-ota:disabled { opacity: 0.4; cursor: not-allowed; }
+  .ota-log {
+    background: #0a0f1a; border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; font-family: monospace; font-size: 0.75rem;
+    color: #7dd3fc; height: 160px; overflow-y: auto; margin-top: 14px;
+  }
+  .ota-log .log-ok { color: var(--ok); }
+  .ota-log .log-err { color: var(--fail); }
+  .ota-log .log-info { color: var(--muted); }
+  .ota-info {
+    background: rgba(56,189,248,0.06); border: 1px solid rgba(56,189,248,0.2);
+    border-radius: 10px; padding: 14px; font-size: 0.8rem; color: var(--muted);
+    line-height: 1.7; margin-top: 16px;
+  }
+  .ota-info strong { color: var(--text); }
+
+  /* ── MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 300;
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--sidebar); border: 1px solid var(--border);
+    border-radius: 16px; padding: 24px; width: 360px; max-width: 100%;
+    max-height: 90vh; overflow-y: auto;
+  }
+  .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+  .modal-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 0.82rem; gap: 8px; }
+  .modal-row:last-of-type { border-bottom: none; }
+  .modal-key { color: var(--muted); white-space: nowrap; }
+  .modal-val { font-weight: 600; text-align: right; }
+  .btn-close { margin-top: 16px; width: 100%; padding: 9px; border-radius: 8px; background: var(--card2); border: 1px solid var(--border); color: var(--text); cursor: pointer; font-size: 0.85rem; }
+
+  /* ── LOADER ── */
+  .loader { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { text-align: center; padding: 50px; color: var(--muted); font-size: 0.95rem; }
+
+  /* ── BOTTOM NAV (mobile) ── */
+  .bottom-nav {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--sidebar); border-top: 1px solid var(--border);
+    z-index: 200; height: var(--navbar-h);
+  }
+  .bottom-nav-inner { display: flex; height: 100%; }
+  .bnav-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; cursor: pointer; font-size: 0.62rem; font-weight: 600;
+    color: var(--muted); transition: color 0.2s; padding: 6px 4px;
+    border: none; background: none;
+  }
+  .bnav-item .bicon { font-size: 1.3rem; line-height: 1; }
+  .bnav-item.active { color: var(--accent); }
+
+  /* ── OVERLAY (sidebar mobile) ── */
+  .sidebar-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 190;
+  }
+  .sidebar-overlay.open { display: block; }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    /* Sidebar vira drawer */
+    .sidebar {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      transform: translateX(-100%);
+      box-shadow: 4px 0 20px rgba(0,0,0,0.4);
+    }
+    .sidebar.open { transform: translateX(0); }
+
+    /* Mostra hamburger */
+    .btn-menu { display: block; }
+
+    /* Topbar compacta */
+    .topbar { padding: 8px 12px; }
+    .topbar h1 { font-size: 0.88rem; }
+    .badge { display: none; }
+    .btn-refresh { padding: 5px 10px; font-size: 0.72rem; }
+
+    /* Conteúdo com padding bottom para bottom nav */
+    .content { padding: 10px 10px; padding-bottom: calc(var(--navbar-h) + 10px); }
+
+    /* Tabela mais compacta */
+    .hist-table { font-size: 0.72rem; }
+    .hist-table th { padding: 8px 10px; font-size: 0.62rem; }
+    .hist-table td { padding: 8px 10px; }
+    .pill { font-size: 0.62rem; padding: 2px 7px; }
+
+    /* OTA compacto */
+    .ota-card { padding: 14px; }
+    .ota-card h3 { font-size: 0.8rem; margin-bottom: 12px; }
+    .device-row .dname { font-size: 0.75rem; }
+    .device-row .dstatus { font-size: 0.62rem; }
+    .ota-info { font-size: 0.72rem; padding: 10px; }
+    .ota-log { font-size: 0.68rem; height: 120px; }
+
+    /* Stats menores */
+    .stats-row { gap: 6px; margin-bottom: 10px; }
+    .stat-card { padding: 8px 10px; min-width: 0; border-radius: 10px; }
+    .stat-num { font-size: 1.35rem; }
+    .stat-lbl { font-size: 0.58rem; letter-spacing: 0.5px; }
+
+    /* Grid 2 colunas no mobile */
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+
+    /* Cards menores no mobile */
+    .card { padding: 10px 8px; border-radius: 10px; }
+    .card-name { font-size: 0.62rem; margin-bottom: 8px; }
+    .status-circle { width: 42px; height: 42px; font-size: 0.52rem; margin-bottom: 8px; }
+    .card-footer { font-size: 0.56rem; padding-top: 6px; }
+    .dual-circle { width: 36px; height: 36px; font-size: 0.44rem; }
+    .dual-circle .dc-num { font-size: 0.52rem; }
+    .dual-footer { font-size: 0.5rem; padding-top: 6px; }
+    .dual-circles { gap: 6px; margin-bottom: 8px; }
+
+    /* OTA em coluna única */
+    .ota-grid { grid-template-columns: 1fr; }
+
+    /* Bottom nav visível */
+    .bottom-nav { display: block; }
+
+    /* Filtros histórico em coluna */
+    .hist-filters { flex-direction: column; }
+    .hist-filters select,
+    .hist-filters input { flex: none; width: 100%; }
+    .btn-filter { width: 100%; text-align: center; }
+  }
+
+  @media (max-width: 400px) {
+    .content { padding: 10px 8px; padding-bottom: calc(var(--navbar-h) + 10px); }
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 6px; }
+    .card { padding: 8px 6px; border-radius: 9px; }
+    .card-name { font-size: 0.56rem; margin-bottom: 6px; }
+    .status-circle { width: 36px; height: 36px; font-size: 0.48rem; margin-bottom: 6px; }
+    .dual-circle { width: 32px; height: 32px; font-size: 0.42rem; }
+    .dual-circle .dc-num { font-size: 0.48rem; }
+    .stat-num { font-size: 1.2rem; }
+    .stat-lbl { font-size: 0.54rem; }
+    .stat-card { padding: 7px 8px; }
+    .topbar h1 { font-size: 0.82rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- OVERLAY sidebar mobile -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <!-- <div class="sidebar-logo">
+    <img src="logo_w-1.png" alt="Trivia" onerror="this.style.display='none'">
+    <span>TRIVIA</span>
+  </div> -->
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="showPage('monitor')" id="nav-monitor">
+      <span class="icon">📡</span> Monitoramento
+    </div>
+    <div class="nav-item" onclick="showPage('historico')" id="nav-historico">
+      <span class="icon">📊</span> Histórico
+    </div>
+    <div class="nav-item" onclick="showPage('ota')" id="nav-ota">
+      <span class="icon">⬆️</span> Atualização OTA
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <span class="conn-dot" id="conn-dot"></span>
+    <span id="conn-text">Conectando...</span>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="btn-menu" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+      <h1 id="page-title">📡 Monitoramento</h1>
+    </div>
+    <div class="topbar-right">
+      <span class="badge ok" id="badge-ok">- OK</span>
+      <span class="badge fail" id="badge-fail">- Falha</span>
+      <span class="badge off" id="badge-off">- Offline</span>
+      <button class="btn-refresh" onclick="fetchData()">↻ Atualizar</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- PAGE: MONITORAMENTO -->
+    <div class="page active" id="page-monitor">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-num blue" id="cnt-total">-</div><div class="stat-lbl">Total</div></div>
+        <div class="stat-card"><div class="stat-num green" id="cnt-ok">-</div><div class="stat-lbl">Operacionais</div></div>
+        <div class="stat-card"><div class="stat-num red" id="cnt-fail">-</div><div class="stat-lbl">Falhas</div></div>
+        <div class="stat-card"><div class="stat-num gray" id="cnt-off">-</div><div class="stat-lbl">Sem Resposta</div></div>
+      </div>
+      <div id="grid" class="grid">
+        <div class="empty"><span class="loader"></span> Carregando torres...</div>
+      </div>
+    </div>
+
+    <!-- PAGE: HISTÓRICO -->
+    <div class="page" id="page-historico">
+      <div class="hist-filters">
+        <select id="filt-device"><option value="">Todas as torres</option></select>
+        <select id="filt-status">
+          <option value="">Todos os status</option>
+          <option value="true">OK</option>
+          <option value="false">FALHA</option>
+        </select>
+        <input type="date" id="filt-date" title="Filtrar por data">
+        <button class="btn-filter" onclick="fetchHistory()">🔍 Filtrar</button>
+        <button class="btn-filter" onclick="clearFilters()">✕ Limpar</button>
+      </div>
+      <div class="table-wrap">
+        <table class="hist-table">
+          <thead>
+            <tr>
+              <th>Torre</th>
+              <th>Status</th>
+              <th>Data/Hora</th>
+              <th>Duração</th>
+            </tr>
+          </thead>
+          <tbody id="hist-body">
+            <tr><td colspan="4" class="hist-empty"><span class="loader"></span> Carregando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PAGE: OTA -->
+    <div class="page" id="page-ota">
+      <div class="ota-grid">
+        <div class="ota-card">
+          <h3>📋 Selecionar Dispositivo</h3>
+          <div class="device-list" id="ota-device-list">
+            <div class="empty" style="padding:20px"><span class="loader"></span></div>
+          </div>
+          <div class="ota-log" id="ota-log">
+            <span class="log-info">// Log de atualização OTA</span>
+          </div>
+        </div>
+        <div class="ota-card">
+          <h3>📦 Enviar Firmware</h3>
+          <div class="upload-zone" id="upload-zone" onclick="document.getElementById('ota-file-input').click()" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+            <div class="uz-icon">📁</div>
+            <div class="uz-text">Clique ou arraste o arquivo <strong>.bin</strong></div>
+            <div class="uz-file" id="uz-filename">Nenhum arquivo selecionado</div>
+          </div>
+          <input type="file" id="ota-file-input" accept=".bin" onchange="handleFileSelect(event)">
+          <button class="btn-ota" id="btn-send-ota" onclick="sendOTA()" disabled>⬆️ Enviar Atualização</button>
+          <div class="ota-info">
+            <strong>ℹ️ Como funciona o OTA:</strong><br>
+            O ESP32 precisa estar na <strong>mesma rede</strong> que este computador.<br><br>
+            <strong>Opção 1 — ArduinoOTA</strong> (já no código):<br>
+            Use a Arduino IDE → Ferramentas → Porta → <em>Torre_XXXX (rede)</em><br><br>
+            <strong>Opção 2 — ElegantOTA</strong> (via browser):<br>
+            Acesse <code>http://<IP_DO_ESP>/update</code> e faça upload do .bin<br><br>
+            <strong>IP dos dispositivos:</strong> veja no monitor serial ou no roteador.
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BOTTOM NAV (mobile) -->
+<nav class="bottom-nav">
+  <div class="bottom-nav-inner">
+    <button class="bnav-item active" onclick="showPage('monitor')" id="bnav-monitor">
+      <span class="bicon">📡</span><span>Monitor</span>
+    </button>
+    <button class="bnav-item" onclick="showPage('historico')" id="bnav-historico">
+      <span class="bicon">📊</span><span>Histórico</span>
+    </button>
+    <button class="bnav-item" onclick="showPage('ota')" id="bnav-ota">
+      <span class="bicon">⬆️</span><span>OTA</span>
+    </button>
+  </div>
+</nav>
+
+<!-- MODAL DETALHES -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <h2 id="modal-title">Detalhes da Torre</h2>
+    <div id="modal-body"></div>
+    <button class="btn-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">Fechar</button>
+  </div>
+</div>
+
+<script>
+  // ── CONFIG ──
+  const SB_URL = "https://fkddaibgfclnpjedeisw.supabase.co";
+  const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZrZGRhaWJnZmNsbnBqZWRlaXN3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc4NTA4NTEsImV4cCI6MjA5MzQyNjg1MX0.obf-xuFCd6NTXkMtsXniEt2-RsvKkgIrtkwqo7WJgpw";
+  const OFFLINE_MIN = 15;
+
+  let allDevices = [];
+  let selectedOtaDevice = null;
+  let otaFile = null;
+
+  // ── SIDEBAR MOBILE ──
+  function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+    document.getElementById('sidebar-overlay').classList.toggle('open');
+  }
+  function closeSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-overlay').classList.remove('open');
+  }
+
+  // ── UTILS ──
+  function parseDate(v) {
+    if (!v) return null;
+    let d = new Date(v);
+    if (!isNaN(d)) return d;
+    d = new Date(v.replace(" ", "T").split("+")[0] + "Z");
+    return isNaN(d) ? null : d;
+  }
+
+  function getStatus(t) {
+    const d = parseDate(t.last_seen);
+    const diff = d ? Math.floor((Date.now() - d.getTime()) / 60000) : 9999;
+    if (diff > OFFLINE_MIN) return 'offline';
+    if (t.is_ok) return 'ok';
+    return 'fail';
+  }
+
+  function fmtTime(v) {
+    const d = parseDate(v);
+    if (!d) return '---';
+    return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function timeSince(v) {
+    const d = parseDate(v);
+    if (!d) return '---';
+    const s = Math.floor((Date.now() - d.getTime()) / 1000);
+    if (s < 60) return s + 's atrás';
+    if (s < 3600) return Math.floor(s/60) + 'min atrás';
+    return Math.floor(s/3600) + 'h atrás';
+  }
+
+  function duration(from, to) {
+    const a = parseDate(from), b = to ? parseDate(to) : new Date();
+    if (!a || !b) return '---';
+    const s = Math.floor((b - a) / 1000);
+    if (s < 60) return s + 's';
+    if (s < 3600) return Math.floor(s/60) + 'min';
+    return Math.floor(s/3600) + 'h ' + Math.floor((s%3600)/60) + 'min';
+  }
+
+  // ── NAVIGATION ──
+  function showPage(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.bnav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById('page-' + id).classList.add('active');
+    document.getElementById('nav-' + id).classList.add('active');
+    document.getElementById('bnav-' + id).classList.add('active');
+    const titles = { monitor: '📡 Monitoramento', historico: '📊 Histórico', ota: '⬆️ Atualização OTA' };
+    document.getElementById('page-title').textContent = titles[id];
+    if (id === 'historico') fetchHistory();
+    if (id === 'ota') renderOtaDevices();
+    closeSidebar();
+  }
+
+  // ── FETCH DEVICES ──
+  async function fetchData() {
+    try {
+      const res = await fetch(`${SB_URL}/rest/v1/device_status?select=*&order=device_name`, {
+        headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      allDevices = await res.json();
+      renderCards(allDevices);
+      setConn(true);
+    } catch(e) {
+      setConn(false, e.message);
+    }
+  }
+
+  function setConn(ok, msg) {
+    const dot = document.getElementById('conn-dot');
+    const txt = document.getElementById('conn-text');
+    dot.className = 'conn-dot ' + (ok ? 'ok' : 'err');
+    txt.textContent = ok ? 'Conectado' : ('Erro: ' + msg);
+  }
+
+  function getBaseName(name) {
+    const m = name.match(/^(.+?)\s*-\s*\d+\s*$/);
+    return m ? m[1].trim() : null;
+  }
+
+  function renderCards(data) {
+    const grid = document.getElementById('grid');
+    let ok=0, fail=0, off=0;
+    if (!data || !data.length) {
+      grid.innerHTML = '<div class="empty">Nenhuma torre encontrada.</div>';
+      updateBadges(0,0,0,0); return;
+    }
+
+    const groups = {};
+    const singles = [];
+
+    data.forEach(t => {
+      const base = getBaseName(t.device_name);
+      if (base) {
+        if (!groups[base]) groups[base] = [];
+        groups[base].push(t);
+      } else {
+        singles.push(t);
+      }
+    });
+
+    grid.innerHTML = '';
+
+    Object.entries(groups).forEach(([base, members]) => {
+      members.sort((a, b) => {
+        const na = parseInt(a.device_name.match(/(\d+)\s*$/)?.[1] || 0);
+        const nb = parseInt(b.device_name.match(/(\d+)\s*$/)?.[1] || 0);
+        return na - nb;
+      });
+
+      const statuses = members.map(m => getStatus(m));
+      const hasFail = statuses.includes('fail');
+      const hasOffline = statuses.includes('offline');
+      const cardClass = hasFail ? 'fail' : hasOffline ? 'offline' : 'ok';
+
+      statuses.forEach(s => {
+        if (s==='ok') ok++; else if (s==='fail') fail++; else off++;
+      });
+
+      const card = document.createElement('div');
+      card.className = `card ${cardClass}`;
+      card.onclick = () => openModalGroup(members);
+
+      const circlesHtml = members.map(m => {
+        const st = getStatus(m);
+        const num = m.device_name.match(/(\d+)\s*$/)?.[1] || '?';
+        return `<div class="dual-circle ${st}" title="${m.device_name}">
+          <span class="dc-num">${num}</span>
+          <span>${st === 'ok' ? 'OK' : st === 'fail' ? 'FALHA' : 'OFF'}</span>
+        </div>`;
+      }).join('');
+
+      const footerHtml = members.map(m =>
+        `<span title="${m.device_name}">🕐 ${timeSince(m.last_seen)}</span>`
+      ).join('');
+
+      card.innerHTML = `
+        <div class="card-name" title="${base}">${base}</div>
+        <div class="dual-circles">${circlesHtml}</div>
+        <div class="dual-footer">${footerHtml}</div>`;
+      grid.appendChild(card);
+    });
+
+    singles.forEach(t => {
+      const st = getStatus(t);
+      const label = st === 'ok' ? 'OK' : st === 'fail' ? 'FALHA' : 'OFFLINE';
+      if (st==='ok') ok++; else if (st==='fail') fail++; else off++;
+      const card = document.createElement('div');
+      card.className = `card ${st}`;
+      card.onclick = () => openModal(t);
+      card.innerHTML = `
+        <div class="card-name" title="${t.device_name}">${t.device_name}</div>
+        <div class="status-circle">${label}</div>
+        <div class="card-footer">🕐 ${timeSince(t.last_seen)}</div>`;
+      grid.appendChild(card);
+    });
+
+    updateBadges(data.length, ok, fail, off);
+  }
+
+  function updateBadges(total, ok, fail, off) {
+    document.getElementById('cnt-total').textContent = total;
+    document.getElementById('cnt-ok').textContent = ok;
+    document.getElementById('cnt-fail').textContent = fail;
+    document.getElementById('cnt-off').textContent = off;
+    document.getElementById('badge-ok').textContent = ok + ' OK';
+    document.getElementById('badge-fail').textContent = fail + ' Falha';
+    document.getElementById('badge-off').textContent = off + ' Offline';
+  }
+
+  // ── MODAL ──
+  function openModal(t) {
+    const st = getStatus(t);
+    const label = st === 'ok' ? '✅ OK' : st === 'fail' ? '🔴 FALHA' : '⚫ OFFLINE';
+    document.getElementById('modal-title').textContent = t.device_name;
+    document.getElementById('modal-body').innerHTML = `
+      <div class="modal-row"><span class="modal-key">Status</span><span class="modal-val">${label}</span></div>
+      <div class="modal-row"><span class="modal-key">Sensor</span><span class="modal-val">${t.is_ok ? '✅ OK' : '❌ FALHA'}</span></div>
+      <div class="modal-row"><span class="modal-key">Último contato</span><span class="modal-val">${fmtTime(t.last_seen)}</span></div>
+      <div class="modal-row"><span class="modal-key">Tempo atrás</span><span class="modal-val">${timeSince(t.last_seen)}</span></div>
+      <div class="modal-row"><span class="modal-key">Registrado em</span><span class="modal-val">${fmtTime(t.created_at)}</span></div>`;
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function openModalGroup(members) {
+    const base = getBaseName(members[0].device_name) || members[0].device_name;
+    document.getElementById('modal-title').textContent = base + ' (Par)';
+    document.getElementById('modal-body').innerHTML = members.map(t => {
+      const st = getStatus(t);
+      const label = st === 'ok' ? '✅ OK' : st === 'fail' ? '🔴 FALHA' : '⚫ OFFLINE';
+      const num = t.device_name.match(/(\d+)\s*$/)?.[1] || '?';
+      return `
+        <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+          <div style="font-weight:700;font-size:0.85rem;margin-bottom:6px;color:var(--accent)">Unidade ${num}</div>
+          <div class="modal-row"><span class="modal-key">Status</span><span class="modal-val">${label}</span></div>
+          <div class="modal-row"><span class="modal-key">Sensor</span><span class="modal-val">${t.is_ok ? '✅ OK' : '❌ FALHA'}</span></div>
+          <div class="modal-row"><span class="modal-key">Último contato</span><span class="modal-val">${fmtTime(t.last_seen)}</span></div>
+          <div class="modal-row" style="border-bottom:none"><span class="modal-key">Tempo atrás</span><span class="modal-val">${timeSince(t.last_seen)}</span></div>
+        </div>`;
+    }).join('');
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal(e) {
+    if (e.target === document.getElementById('modal-overlay'))
+      document.getElementById('modal-overlay').classList.remove('open');
+  }
+
+  // ── HISTÓRICO ──
+  async function fetchHistory() {
+    const tbody = document.getElementById('hist-body');
+    tbody.innerHTML = '<tr><td colspan="4" class="hist-empty"><span class="loader"></span> Carregando...</td></tr>';
+
+    const device = document.getElementById('filt-device').value;
+    const status = document.getElementById('filt-status').value;
+    const date   = document.getElementById('filt-date').value;
+
+    let url = `${SB_URL}/rest/v1/status_history?select=*&order=created_at.desc&limit=200`;
+    if (device) url += `&device_name=eq.${encodeURIComponent(device)}`;
+    if (status !== '') url += `&is_ok=eq.${status}`;
+    if (date) url += `&created_at=gte.${date}T00:00:00&created_at=lte.${date}T23:59:59`;
+
+    try {
+      const res = await fetch(url, { headers: { "apikey": SB_KEY, "Authorization": `Bearer ${SB_KEY}` } });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const rows = await res.json();
+      renderHistory(rows);
+      populateDeviceFilter();
+    } catch(e) {
+      tbody.innerHTML = `<tr><td colspan="4" class="hist-empty" style="color:var(--fail)">Erro: ${e.message}</td></tr>`;
+    }
+  }
+
+  function renderHistory(rows) {
+    const tbody = document.getElementById('hist-body');
+    if (!rows || !rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="hist-empty">Nenhum registro encontrado.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map((r, i) => {
+      const next = rows[i-1];
+      const dur = next ? duration(r.created_at, next.created_at) : duration(r.created_at, null);
+      const pill = r.is_ok
+        ? '<span class="pill ok">✅ OK</span>'
+        : '<span class="pill fail">🔴 FALHA</span>';
+      return `<tr>
+        <td style="font-weight:600">${r.device_name}</td>
+        <td>${pill}</td>
+        <td>${fmtTime(r.created_at)}</td>
+        <td style="color:var(--muted)">${dur}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function populateDeviceFilter() {
+    const sel = document.getElementById('filt-device');
+    const current = sel.value;
+    const names = [...new Set(allDevices.map(d => d.device_name))].sort();
+    sel.innerHTML = '<option value="">Todas as torres</option>' +
+      names.map(n => `<option value="${n}" ${n===current?'selected':''}>${n}</option>`).join('');
+  }
+
+  function clearFilters() {
+    document.getElementById('filt-device').value = '';
+    document.getElementById('filt-status').value = '';
+    document.getElementById('filt-date').value = '';
+    fetchHistory();
+  }
+
+  // ── OTA ──
+  function renderOtaDevices() {
+    const list = document.getElementById('ota-device-list');
+    if (!allDevices.length) {
+      list.innerHTML = '<div class="empty" style="padding:20px;font-size:0.8rem">Nenhum dispositivo carregado.<br>Vá em Monitoramento primeiro.</div>';
+      return;
+    }
+    list.innerHTML = allDevices.map(d => {
+      const st = getStatus(d);
+      const online = st !== 'offline';
+      return `<div class="device-row ${selectedOtaDevice===d.device_name?'selected':''}" onclick="selectOtaDevice('${d.device_name}', ${online})">
+        <span class="dname">${d.device_name}</span>
+        <span class="dstatus ${online?'online':'offline'}">${online?'● Online':'○ Offline'}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function selectOtaDevice(name, online) {
+    selectedOtaDevice = name;
+    renderOtaDevices();
+    otaLog(`Dispositivo selecionado: <strong>${name}</strong>`, online ? 'ok' : 'info');
+    if (!online) otaLog('⚠️ Dispositivo offline — OTA pode falhar', 'err');
+    checkOtaReady();
+  }
+
+  function handleFileSelect(e) {
+    const f = e.target.files[0];
+    if (f) { otaFile = f; document.getElementById('uz-filename').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)'; checkOtaReady(); }
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('upload-zone').classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f && f.name.endsWith('.bin')) {
+      otaFile = f;
+      document.getElementById('uz-filename').textContent = f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)';
+      checkOtaReady();
+    } else {
+      otaLog('❌ Apenas arquivos .bin são aceitos', 'err');
+    }
+  }
+
+  function checkOtaReady() {
+    document.getElementById('btn-send-ota').disabled = !(selectedOtaDevice && otaFile);
+  }
+
+  function otaLog(msg, cls='') {
+    const log = document.getElementById('ota-log');
+    const line = document.createElement('div');
+    line.className = cls ? 'log-' + cls : '';
+    line.innerHTML = `[${new Date().toLocaleTimeString('pt-BR')}] ${msg}`;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function sendOTA() {
+    if (!selectedOtaDevice || !otaFile) return;
+    otaLog(`🚀 Iniciando OTA para <strong>${selectedOtaDevice}</strong>...`, 'ok');
+    otaLog(`📦 Arquivo: ${otaFile.name} (${(otaFile.size/1024).toFixed(1)} KB)`, 'info');
+    otaLog('ℹ️ O ESP32 precisa estar na mesma rede que este computador.', 'info');
+    otaLog('ℹ️ Use a Arduino IDE (Ferramentas → Porta → rede) ou ElegantOTA.', 'info');
+    otaLog('─────────────────────────────────', 'info');
+    otaLog('Para ElegantOTA: acesse http://<IP_DO_ESP>/update no browser.', 'info');
+    otaLog('Para ArduinoOTA: use a IDE com a porta de rede detectada.', 'info');
+    otaLog('✅ Arquivo .bin pronto para envio manual.', 'ok');
+  }
+
+  // ── INIT ──
+  fetchData();
+  setInterval(fetchData, 10000);
+</script>
+</body>
+</html>
