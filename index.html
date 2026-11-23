@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trivia Trens · Monitor de Torres</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.3.7/mqtt.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-logo">
+    <img src="images/logo.jpeg" alt="Trivia Trens" onerror="this.style.display='none'">
+    <span class="sidebar-tag">Monitor de Torres</span>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" onclick="showPage('monitor')" id="nav-monitor"><span class="icon">📡</span> Monitoramento</div>
+    <div class="nav-item" onclick="showPage('historico')" id="nav-historico"><span class="icon">📊</span> Histórico</div>
+    <div class="nav-item" onclick="showPage('ota')" id="nav-ota"><span class="icon">⬆️</span> Atualização OTA</div>
+  </nav>
+  <div class="sidebar-footer"><span class="conn-dot" id="conn-dot"></span><span id="conn-text">Conectando...</span></div>
+</aside>
+
+<div class="main">
+  <header class="topbar">
+    <div class="topbar-left">
+      <button class="btn-menu" onclick="toggleSidebar()" aria-label="Menu">☰</button>
+      <div>
+        <div class="topbar-kicker">Trivia Trens</div>
+        <h1 id="page-title">Monitoramento</h1>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="badge ok" id="badge-ok">- OK</span>
+      <span class="badge fail" id="badge-fail">- Lâmpada Apagada</span>
+      <span class="badge off" id="badge-off">- Offline</span>
+      <button class="btn-refresh" onclick="fetchData()">↻ Atualizar</button>
+    </div>
+  </header>
+
+  <main class="content">
+    <section class="page active" id="page-monitor">
+      <p class="page-intro">Acompanhe em tempo real o status das torres de comunicação da operação Trivia Trens.</p>
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-num blue" id="cnt-total">-</div><div class="stat-lbl">Total</div></div>
+        <div class="stat-card ok"><div class="stat-num green" id="cnt-ok">-</div><div class="stat-lbl">Operacionais</div></div>
+        <div class="stat-card fail"><div class="stat-num red" id="cnt-fail">-</div><div class="stat-lbl">Lâmpadas Apagadas</div></div>
+        <div class="stat-card off"><div class="stat-num gray" id="cnt-off">-</div><div class="stat-lbl">Sem Resposta</div></div>
+      </div>
+      <div class="section-label"><h2>Torres da rede</h2><span>Toque para ver detalhes</span></div>
+      <div id="grid" class="grid"><div class="empty"><span class="loader"></span> Carregando torres...</div></div>
+    </section>
+
+    <section class="page" id="page-historico">
+      <p class="page-intro">Consulte eventos de status e a duração de cada ocorrência na rede.</p>
+      <div class="hist-filters">
+        <select id="filt-device"><option value="">Todas as torres</option></select>
+        <select id="filt-status">
+          <option value="">Todos os status</option>
+          <option value="true">OK</option>
+          <option value="false">Lâmpada Apagada</option>
+        </select>
+        <input type="date" id="filt-date" title="Filtrar por data">
+        <button class="btn-filter primary" onclick="fetchHistory()">🔍 Filtrar</button>
+        <button class="btn-filter" onclick="clearFilters()">✕ Limpar</button>
+      </div>
+      <div class="table-wrap">
+        <table class="hist-table">
+          <thead><tr><th>Torre</th><th>Status</th><th>Data/Hora</th><th>Duração</th></tr></thead>
+          <tbody id="hist-body"><tr><td colspan="4" class="hist-empty"><span class="loader"></span> Carregando...</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="page" id="page-ota">
+      <p class="page-intro">Envie firmware e comandos remotos às torres via MQTT.</p>
+      <div class="ota-header">
+        <div class="ota-header-left"><span class="mqtt-dot" id="mqtt-dot"></span><span id="mqtt-text">Desconectado do broker MQTT</span></div>
+        <button class="btn-filter" onclick="mqttConnect()">Reconectar MQTT</button>
+      </div>
+      <div class="ota-grid">
+        <div class="ota-card">
+          <h3>Selecionar dispositivo</h3>
+          <div class="device-list" id="ota-device-list"><div class="empty"><span class="loader"></span></div></div>
+          <div class="progress" id="ota-progress" hidden><div class="progress-bg"><div class="progress-bar" id="ota-bar"></div></div><div class="progress-lbl" id="ota-pct">0%</div></div>
+          <div class="ota-log-label">Log em tempo real</div>
+          <div class="ota-log" id="ota-log"></div>
+        </div>
+        <div class="ota-card">
+          <h3>Enviar firmware via MQTT</h3>
+          <label class="ota-label" for="ota-url">URL do firmware (.bin)</label>
+          <input class="ota-url" type="url" id="ota-url" placeholder="https://raw.githubusercontent.com/usuario/repo/main/firmware.bin">
+          <div class="ota-hint">Use uma URL pública direta (https) para o arquivo <code>.bin</code>.</div>
+          <div class="ota-btn-row">
+            <button class="btn-ota" id="btn-send-ota" onclick="sendOTA()" disabled>Enviar OTA</button>
+            <button class="btn-ota warn" id="btn-restart" onclick="sendCmd('restart')" disabled>Reiniciar</button>
+          </div>
+          <div class="ota-btn-row">
+            <button class="btn-ota" id="btn-status" onclick="sendCmd('status')" disabled>Pedir status</button>
+            <button class="btn-ota danger" onclick="clearLog()">Limpar log</button>
+          </div>
+          <div class="ota-info">
+            <strong>Como funciona:</strong> o painel envia o comando via <strong>MQTT WebSocket</strong> ao ESP32 no tópico <code>torres/torre_SLUG/cmd</code>.<br>
+            Comandos: <code>update https://url.bin</code>, <code>restart</code> e <code>status</code>.<br>
+            Requisitos: ESP32 <strong>online</strong> no broker e URL do <code>.bin</code> pública.
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<nav class="bottom-nav">
+  <button class="bnav-item active" onclick="showPage('monitor')" id="bnav-monitor"><span class="bicon">📡</span><span>Monitor</span></button>
+  <button class="bnav-item" onclick="showPage('historico')" id="bnav-historico"><span class="bicon">📊</span><span>Histórico</span></button>
+  <button class="bnav-item" onclick="showPage('ota')" id="bnav-ota"><span class="bicon">⬆️</span><span>OTA</span></button>
+</nav>
+
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="modal-title">Detalhes da Torre</h2>
+    <div id="modal-body"></div>
+    <button class="btn-close" onclick="closeModal()">Fechar</button>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>
