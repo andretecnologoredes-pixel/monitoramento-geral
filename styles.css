@@ -147,6 +147,7 @@ code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-siz
   .bottom-nav{display:flex}
   .fail.circle{width:60px;height:60px}.dual-circle.fail{width:52px;height:52px}
 }
+chat
 @media(max-width:400px){
   .circle{width:48px;height:48px}.dual-circle{width:40px;height:40px}
   .fail.circle{width:56px;height:56px;font-size:.48rem}.dual-circle.fail{width:50px;height:50px;font-size:.42rem}
